@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#0b0f17" id="meta-theme-color" />
+    <meta name="color-scheme" content="dark light" />
+    <title>SignalPath Intel</title>
+    <script>
+      (function () {
+        var stored = localStorage.getItem("spi-theme");
+        var theme =
+          stored ||
+          (window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark");
+        document.documentElement.setAttribute("data-theme", theme);
+        var meta = document.getElementById("meta-theme-color");
+        if (meta) meta.content = theme === "light" ? "#f4f5f7" : "#0b0f17";
+      })();
+    </script>
+    <link rel="stylesheet" href="/web/styles.css" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link
+      href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700&family=JetBrains+Mono:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
+  </head>
+  <body data-ui-state="idle" data-mobile-tab="settings">
+    <header class="app-header">
+      <div class="header-inner">
+        <div class="brand">
+          <span class="brand-mark">SP</span>
+          <div>
+            <h1 class="brand-title">SignalPath Intel</h1>
+            <p class="brand-sub">Competitive intelligence from public disclosures</p>
+          </div>
+        </div>
+        <div class="header-meta">
+          <button
+            type="button"
+            id="theme-toggle"
+            class="btn ghost btn-xs theme-toggle"
+            aria-label="Switch to light theme"
+            title="Toggle theme"
+          >
+            <span class="theme-icon theme-icon-sun" aria-hidden="true">☀</span>
+            <span class="theme-icon theme-icon-moon" aria-hidden="true">☾</span>
+          </button>
+          <span id="header-status" class="status-pill idle">Idle</span>
+          <span id="header-elapsed" class="header-elapsed"></span>
+        </div>
+      </div>
+    </header>
+
+  <!-- Mobile tab bar -->
+    <nav class="mobile-tabs" aria-label="Mobile navigation">
+      <button type="button" class="mobile-tab" data-tab="settings">Settings</button>
+      <button type="button" class="mobile-tab" data-tab="job">Job</button>
+      <button type="button" class="mobile-tab" data-tab="results">Results</button>
+    </nav>
+
+    <!-- Mobile completed status bar (collapsed monitor) -->
+    <div id="mobile-success-bar" class="mobile-success-bar" hidden>
+      <span class="success-dot"></span>
+      <span id="mobile-success-text">Report complete</span>
+      <span id="mobile-success-meta"></span>
+    </div>
+
+    <main class="workspace-grid">
+      <!-- LEFT: Configuration 30% -->
+      <aside class="panel panel-config" data-panel="config">
+        <div class="panel-scroll">
+          <header class="panel-sticky-header">
+            <h2>Configuration</h2>
+          </header>
+
+          <form id="report-form" class="config-form">
+            <div class="field field-combobox">
+              <span class="label">Company lookup</span>
+              <div class="combobox" id="combobox-lookup">
+                <input
+                  id="company-lookup"
+                  type="search"
+                  value="MSFT — MICROSOFT CORP"
+                  placeholder="Ticker or company name…"
+                  autocomplete="off"
+                  spellcheck="false"
+                  role="combobox"
+                  aria-autocomplete="list"
+                  aria-controls="company-suggestions"
+                  aria-expanded="false"
+                />
+              </div>
+              <p class="field-hint">U.S. public companies from SEC EDGAR. Pick a match to fill ticker and name.</p>
+            </div>
+            <ul id="company-suggestions" class="combobox-list" role="listbox" hidden></ul>
+
+            <label class="field field-combobox">
+              <span class="label">Ticker</span>
+              <div class="combobox" id="combobox-ticker">
+                <input id="ticker" type="text" value="MSFT" required autocomplete="off" spellcheck="false" />
+              </div>
+            </label>
+            <label class="field field-combobox">
+              <span class="label">Company</span>
+              <div class="combobox" id="combobox-company">
+                <input
+                  id="company_name"
+                  type="text"
+                  value="MICROSOFT CORP"
+                  required
+                  autocomplete="off"
+                  spellcheck="false"
+                />
+              </div>
+            </label>
+
+            <section class="stock-chart-block" id="stock-chart-block" aria-label="Stock price chart">
+              <p id="market-disclaimer" class="market-disclaimer" role="note">
+                Not financial advice — entertainment-only mock signal from public prices (not the SEC report).
+              </p>
+              <div class="market-rating-row">
+                <span id="market-rating-badge" class="market-rating-badge hold" aria-live="polite">—</span>
+                <span id="market-validation-badge" class="market-validation-badge" aria-live="polite"></span>
+              </div>
+              <p id="market-summary" class="market-summary muted"></p>
+              <ul id="market-rationale" class="market-rationale" hidden></ul>
+              <div class="stock-chart-head">
+                <h3 class="stock-chart-title">Stock price</h3>
+                <div class="stock-range-tabs" role="tablist" aria-label="Chart range">
+                  <button type="button" class="stock-range-btn" data-range="1mo">1M</button>
+                  <button type="button" class="stock-range-btn active" data-range="6mo">6M</button>
+                  <button type="button" class="stock-range-btn" data-range="1y">1Y</button>
+                  <button type="button" class="stock-range-btn" data-range="2y">2Y</button>
+                </div>
+              </div>
+              <div class="stock-chart-meta">
+                <span id="stock-latest-price" class="stock-latest-price">—</span>
+                <span id="stock-change" class="stock-change"></span>
+              </div>
+              <div class="stock-chart-wrap">
+                <canvas id="stock-chart" width="640" height="160" aria-hidden="true"></canvas>
+                <p id="stock-chart-status" class="stock-chart-status muted">Loading chart…</p>
+              </div>
+            </section>
+
+            <label class="field">
+              <span class="label">Business lens</span>
+              <textarea id="lens" rows="3" required>AI strategy, cloud growth, cybersecurity risk, margin pressure</textarea>
+            </label>
+            <label class="field">
+              <span class="label">Competitors</span>
+              <input id="competitors" type="text" value="CRM, NOW, TEAM" placeholder="Comma-separated" />
+            </label>
+            <div class="peer-suggestions" id="peer-suggestions" hidden>
+              <div class="peer-suggestions-head">
+                <span id="peer-cluster-label" class="peer-cluster-label"></span>
+                <button type="button" id="peer-use-all" class="btn ghost btn-xs" hidden>
+                  Use all
+                </button>
+              </div>
+              <div id="peer-chips" class="peer-chips" role="list"></div>
+              <p id="peer-suggestions-empty" class="peer-suggestions-empty muted" hidden>
+                No peer cluster for this company yet.
+              </p>
+            </div>
+
+            <button type="button" id="advanced-toggle" class="btn-link">
+              Advanced settings
+            </button>
+          </form>
+
+          <p id="error" class="form-error" hidden></p>
+
+          <section class="history-block">
+            <div class="history-head">
+              <h3>Run history</h3>
+              <button type="button" id="refresh-sessions" class="btn ghost btn-xs">Refresh</button>
+            </div>
+            <ul id="session-list" class="session-list">
+              <li class="muted">No saved runs</li>
+            </ul>
+          </section>
+        </div>
+
+        <footer class="config-footer">
+          <button type="submit" form="report-form" id="submit-btn" class="btn primary">
+            Generate Signal Report
+          </button>
+        </footer>
+      </aside>
+
+      <!-- CENTER: Job monitor + workspace 40% -->
+      <section class="panel panel-center" data-panel="center">
+        <div class="panel-scroll center-scroll">
+          <article id="job-monitor" class="job-monitor">
+            <div class="monitor-top">
+              <div class="progress-ring-wrap" aria-hidden="true">
+                <svg class="progress-ring" viewBox="0 0 36 36">
+                  <circle class="ring-bg" cx="18" cy="18" r="15.5" />
+                  <circle id="progress-ring-fill" class="ring-fill" cx="18" cy="18" r="15.5" />
+                </svg>
+                <span id="progress-pct" class="progress-pct">0%</span>
+              </div>
+              <div class="monitor-copy">
+                <p class="monitor-label">Job monitor</p>
+                <p id="phase-text" class="phase-text">Ready to generate</p>
+                <p id="phase-detail" class="phase-detail">Configure inputs and start a run</p>
+              </div>
+            </div>
+            <ol id="phase-steps" class="phase-steps">
+              <li data-phase="resolve_cik">Resolving ticker</li>
+              <li data-phase="fetch_sec_data">Fetching SEC data</li>
+              <li data-phase="extract_evidence">Extracting evidence</li>
+              <li data-phase="generate_report">Generating report</li>
+              <li data-phase="evaluate_report">Running evidence audit</li>
+              <li data-phase="finalize_response">Complete</li>
+            </ol>
+          </article>
+
+          <section class="workspace-feed">
+            <header class="feed-header">
+              <h3>Activity</h3>
+              <button type="button" id="log-expand" class="btn ghost btn-xs">Expand logs</button>
+            </header>
+            <div id="activity-feed" class="activity-feed">
+              <p class="feed-placeholder">Run logs and artifacts appear here.</p>
+            </div>
+            <div id="run-artifacts" class="artifacts-block" hidden>
+              <h4>Artifacts</h4>
+              <div id="artifacts-list"></div>
+            </div>
+          </section>
+        </div>
+      </section>
+
+      <!-- RIGHT: Results 30% -->
+      <aside class="panel panel-results" data-panel="results">
+        <header class="panel-sticky-header results-header">
+          <h2>Results</h2>
+          <button type="button" id="popout-btn" class="btn ghost btn-xs" disabled>
+            Pop-out
+          </button>
+        </header>
+
+        <div id="results-scroll" class="panel-scroll results-scroll">
+          <div id="report-empty" class="results-empty">
+            <p>No report yet</p>
+            <span>Generate a signal report to see analysis here.</span>
+          </div>
+
+          <div id="report-content" class="report-content" hidden>
+            <article class="result-card exec-card">
+              <h3>Executive Summary</h3>
+              <p id="executive-summary" class="exec-text"></p>
+            </article>
+
+            <article class="result-card">
+              <h3>Top Signals</h3>
+              <div id="top-signals" class="card-list"></div>
+            </article>
+
+            <article class="result-card">
+              <h3>Noise</h3>
+              <ul id="noise" class="bullet-list"></ul>
+            </article>
+
+            <article class="result-card">
+              <h3>Risks</h3>
+              <div id="risks" class="card-list"></div>
+            </article>
+
+            <article class="result-card">
+              <h3>Recommended Actions</h3>
+              <ul id="recommended-actions" class="bullet-list"></ul>
+            </article>
+
+            <article class="result-card">
+              <h3>Evidence Table</h3>
+              <div class="table-wrap">
+                <table id="evidence-table">
+                  <thead>
+                    <tr>
+                      <th>Claim</th>
+                      <th>Evidence</th>
+                      <th>Src</th>
+                      <th>Conf</th>
+                    </tr>
+                  </thead>
+                  <tbody></tbody>
+                </table>
+              </div>
+            </article>
+
+            <article class="result-card eval-card" id="eval-section">
+              <h3>Evaluation</h3>
+              <dl class="eval-grid">
+                <div>
+                  <dt>Passed</dt>
+                  <dd id="eval-passed"></dd>
+                </div>
+                <div>
+                  <dt>Score</dt>
+                  <dd id="eval-score"></dd>
+                </div>
+              </dl>
+              <h4>Unsupported</h4>
+              <ul id="unsupported-claims" class="bullet-list compact"></ul>
+              <h4>Warnings</h4>
+              <ul id="eval-warnings" class="bullet-list compact"></ul>
+            </article>
+          </div>
+        </div>
+      </aside>
+    </main>
+
+    <!-- Mobile FAB -->
+    <button type="button" id="share-fab" class="share-fab" hidden aria-label="Share report">
+      Share
+    </button>
+
+    <!-- Advanced settings bottom sheet (mobile) / inline (desktop) -->
+    <div id="advanced-sheet" class="advanced-sheet" hidden>
+      <div class="sheet-backdrop" id="sheet-backdrop"></div>
+      <div class="sheet-panel">
+        <header class="sheet-header">
+          <h3>Advanced</h3>
+          <button type="button" id="sheet-close" class="btn ghost btn-xs">Close</button>
+        </header>
+        <div class="sheet-body">
+          <p class="muted sheet-note">SEC cache and sessions are stored locally on the server.</p>
+          <label class="field checkbox-field">
+            <input type="checkbox" id="opt-sec-cache" checked disabled />
+            <span>SEC cache (server config)</span>
+          </label>
+        </div>
+      </div>
+    </div>
+
+    <!-- Log fullscreen -->
+    <div id="log-modal" class="log-modal" hidden>
+      <div class="log-modal-inner panel">
+        <header class="log-modal-header">
+          <h3>Job logs</h3>
+          <button type="button" id="log-modal-close" class="btn ghost btn-xs">Close</button>
+        </header>
+        <div id="log-modal-body" class="log-modal-body"></div>
+      </div>
+    </div>
+
+    <footer class="app-footer" role="contentinfo">
+      <span class="app-footer-mark">SPI</span>
+      <span class="app-footer-copy">© <span id="footer-year"></span></span>
+    </footer>
+
+    <script src="/web/app.js"></script>
+  </body>
+</html>
