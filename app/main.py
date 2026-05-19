@@ -11,6 +11,7 @@ from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
 from app.company_directory import ensure_loaded, preload_directory, search_companies
+from app.penny_screener import fetch_penny_stocks, _resolved_provider
 from app.peer_suggestions import get_peer_suggestions
 from app.market_entertainment import build_market_entertainment
 from app.stock_quotes import fetch_stock_history
@@ -25,6 +26,7 @@ from app.schemas import (
     CompanySignalRequest,
     PeerSuggestionsResponse,
     MarketEntertainmentResponse,
+    PennyStocksResponse,
     StockHistoryResponse,
     CompanySignalResponse,
     RunSessionDetail,
@@ -47,6 +49,12 @@ async def lifespan(app: FastAPI):
         settings.ollama_model,
     )
     await preload_directory()
+    if _resolved_provider() == "alpha_vantage":
+        try:
+            await fetch_penny_stocks(10)
+            logger.info("Penny screener cache warmed (alpha_vantage)")
+        except Exception:
+            logger.warning("Penny screener warmup failed", exc_info=True)
     yield
     logger.info("SignalPath Intel shutting down")
 
@@ -71,12 +79,19 @@ def _raise_for_graph_errors(errors: list[str]) -> None:
 
 @app.get("/")
 def index() -> FileResponse:
-    return FileResponse(WEB / "index.html")
+    return FileResponse(
+        WEB / "index.html",
+        headers={"Cache-Control": "no-cache"},
+    )
 
 
 @app.get("/health")
 def health() -> dict[str, str]:
-    return {"status": "ok", "llm_provider": resolved_llm_provider()}
+    return {
+        "status": "ok",
+        "llm_provider": resolved_llm_provider(),
+        "penny_screener_provider": _resolved_provider(),
+    }
 
 
 @app.post("/reports/company-signal", response_model=CompanySignalResponse)
@@ -134,6 +149,24 @@ async def company_signal(body: CompanySignalRequest) -> CompanySignalResponse:
         session_id,
     )
     return response
+
+
+@app.get("/api/market/penny-stocks", response_model=PennyStocksResponse)
+async def market_penny_stocks(limit: int = 10) -> PennyStocksResponse:
+    """Most active US penny stocks (unofficial Yahoo screener via yfinance)."""
+    try:
+        return await fetch_penny_stocks(min(limit, 25))
+    except ImportError as exc:
+        raise HTTPException(
+            status_code=503,
+            detail="Penny screener unavailable (yfinance not installed).",
+        ) from exc
+    except Exception as exc:
+        logger.exception("Penny screener failed")
+        raise HTTPException(
+            status_code=502,
+            detail="Unable to load penny stock screener right now.",
+        ) from exc
 
 
 @app.get("/api/companies/search", response_model=CompanySearchResponse)

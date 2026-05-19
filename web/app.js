@@ -71,6 +71,12 @@ const els = {
   marketValidationBadge: document.getElementById("market-validation-badge"),
   marketSummary: document.getElementById("market-summary"),
   marketRationale: document.getElementById("market-rationale"),
+  pennyStocksStatus: document.getElementById("penny-stocks-status"),
+  pennyStocksBody: document.getElementById("penny-stocks-body"),
+  refreshPennyStocks: document.getElementById("refresh-penny-stocks"),
+  pennyTickerTrack: document.getElementById("penny-ticker-track"),
+  pennyTickerLabel: document.getElementById("penny-ticker-label"),
+  pennyStocksTitle: document.getElementById("penny-stocks-title"),
 };
 
 function getTheme() {
@@ -123,12 +129,195 @@ function formatCompanyLabel(ticker, name) {
   return name ? `${ticker} — ${name}` : ticker;
 }
 
+let selectingCompany = false;
+let tickerPeerTimer = null;
+
 function applyCompanySelection(hit) {
+  clearTimeout(tickerPeerTimer);
+  selectingCompany = true;
   els.ticker.value = hit.ticker;
   els.companyName.value = hit.name;
   els.companyLookup.value = formatCompanyLabel(hit.ticker, hit.name);
-  loadPeerSuggestions(hit.ticker);
+  loadPeerSuggestions(hit.ticker, { autoFillCompetitors: true });
   loadStockChart(hit.ticker, currentStockRange);
+  setTimeout(() => {
+    selectingCompany = false;
+  }, 400);
+}
+
+function formatCompactVolume(value) {
+  if (value == null || Number.isNaN(Number(value))) return "—";
+  const n = Number(value);
+  if (n >= 1_000_000_000) return `${(n / 1_000_000_000).toFixed(1)}B`;
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
+  return String(n);
+}
+
+function formatPennyPrice(value) {
+  if (value == null || Number.isNaN(Number(value))) return "—";
+  const n = Number(value);
+  return n < 1 ? `$${n.toFixed(3)}` : `$${n.toFixed(2)}`;
+}
+
+let pennyStocksSeq = 0;
+
+function formatPennyDataSource(source) {
+  const key = (source || "").toLowerCase();
+  if (key === "alpha_vantage") return "Alpha Vantage";
+  if (key === "yahoo_finance") return "Yahoo Finance";
+  if (!source) return "Loading";
+  return String(source)
+    .replace(/_/g, " ")
+    .replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+function pennyLabelText(source) {
+  return `PENNY - ${formatPennyDataSource(source)}`;
+}
+
+function updatePennyLabels(source) {
+  const label = pennyLabelText(source);
+  if (els.pennyTickerLabel) els.pennyTickerLabel.textContent = label;
+  if (els.pennyStocksTitle) els.pennyStocksTitle.textContent = label;
+}
+
+function pennyTickerItemHtml(row) {
+  const chg = row.change_pct;
+  const chgCls = chg == null ? "" : chg >= 0 ? "up" : "down";
+  const chgText = chg == null ? "—" : `${chg >= 0 ? "+" : ""}${chg.toFixed(1)}%`;
+  const name = escapeHtml(row.name || row.symbol);
+  return `<button type="button" class="penny-ticker-item" data-ticker="${escapeHtml(row.symbol)}" data-name="${name}" title="${name}">
+    <span class="sym">${escapeHtml(row.symbol)}</span>
+    <span class="px">${formatPennyPrice(row.price)}</span>
+    <span class="chg ${chgCls}">${chgText}</span>
+  </button><span class="penny-ticker-sep" aria-hidden="true">|</span>`;
+}
+
+function bindPennyTickerClicks() {
+  els.pennyTickerTrack?.querySelectorAll(".penny-ticker-item").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const ticker = btn.dataset.ticker || "";
+      const name = btn.dataset.name || ticker;
+      if (!ticker) return;
+      applyCompanySelection({ ticker, name });
+    });
+  });
+}
+
+function renderPennyTicker(stocks) {
+  if (!els.pennyTickerTrack) return;
+  const top5 = (stocks || []).slice(0, 5);
+  if (!top5.length) {
+    els.pennyTickerTrack.classList.add("is-paused", "is-centered");
+    els.pennyTickerTrack.innerHTML =
+      '<span class="penny-ticker-msg muted">No active penny movers</span>';
+    return;
+  }
+  const segment = top5.map((row) => pennyTickerItemHtml(row)).join("");
+  els.pennyTickerTrack.classList.remove("is-paused");
+  els.pennyTickerTrack.classList.add("is-centered");
+  els.pennyTickerTrack.innerHTML = segment;
+  bindPennyTickerClicks();
+}
+
+function setPennyTickerMessage(message) {
+  if (!els.pennyTickerTrack) return;
+  els.pennyTickerTrack.classList.add("is-paused", "is-centered");
+  els.pennyTickerTrack.innerHTML = `<span class="penny-ticker-msg muted">${escapeHtml(message)}</span>`;
+}
+
+function renderPennyStocks(payload) {
+  if (!els.pennyStocksBody) return;
+  const stocks = payload?.stocks || [];
+  updatePennyLabels(payload?.source);
+  renderPennyTicker(stocks);
+  if (!stocks.length) {
+    els.pennyStocksBody.innerHTML =
+      '<tr><td colspan="5" class="muted">No matches right now.</td></tr>';
+    return;
+  }
+
+  els.pennyStocksBody.innerHTML = stocks
+    .map((row, index) => {
+      const chg = row.change_pct;
+      const chgCls = chg == null ? "" : chg >= 0 ? "up" : "down";
+      const chgText = chg == null ? "—" : `${chg >= 0 ? "+" : ""}${chg.toFixed(1)}%`;
+      const title = escapeHtml(row.name || row.symbol);
+      return `<tr class="penny-stock-row" data-ticker="${escapeHtml(row.symbol)}" data-name="${title}" title="${title}">
+        <td>${index + 1}</td>
+        <td class="penny-ticker">${escapeHtml(row.symbol)}</td>
+        <td>${formatPennyPrice(row.price)}</td>
+        <td class="penny-change ${chgCls}">${chgText}</td>
+        <td>${formatCompactVolume(row.volume)}</td>
+      </tr>`;
+    })
+    .join("");
+
+  els.pennyStocksBody.querySelectorAll(".penny-stock-row").forEach((tr) => {
+    tr.addEventListener("click", () => {
+      const ticker = tr.dataset.ticker || "";
+      const name = tr.dataset.name || ticker;
+      if (!ticker) return;
+      applyCompanySelection({ ticker, name });
+    });
+  });
+}
+
+async function loadPennyStocks() {
+  if (!els.pennyStocksBody) {
+    console.warn("[SignalPath] penny-stocks-body not found — reload the page");
+    return;
+  }
+  const seq = ++pennyStocksSeq;
+
+  if (els.pennyStocksStatus) {
+    els.pennyStocksStatus.hidden = false;
+    els.pennyStocksStatus.textContent = "Loading screener…";
+  }
+  els.pennyStocksBody.innerHTML =
+    '<tr><td colspan="5" class="muted">Loading…</td></tr>';
+  setPennyTickerMessage("Loading penny tape…");
+  updatePennyLabels("loading");
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 120_000);
+
+  try {
+    const res = await fetch("/api/market/penny-stocks?limit=10", {
+      signal: controller.signal,
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(typeof err.detail === "string" ? err.detail : `HTTP ${res.status}`);
+    }
+    const data = await res.json();
+    if (seq !== pennyStocksSeq) return;
+
+    renderPennyStocks(data);
+    if (els.pennyStocksStatus) {
+      const when = data.updated_at ? new Date(data.updated_at) : null;
+      const whenText =
+        when && !Number.isNaN(when.getTime())
+          ? when.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+          : "";
+      const src = formatPennyDataSource(data.source);
+      els.pennyStocksStatus.textContent = whenText ? `Updated ${whenText}` : src;
+    }
+  } catch (e) {
+    if (seq !== pennyStocksSeq) return;
+    const msg =
+      e.name === "AbortError"
+        ? "Screener timed out (120s). Try Refresh."
+        : e.message || "Screener unavailable";
+    els.pennyStocksBody.innerHTML = `<tr><td colspan="5" class="muted">${escapeHtml(msg)}</td></tr>`;
+    setPennyTickerMessage(msg);
+    if (els.pennyStocksStatus) {
+      els.pennyStocksStatus.textContent = msg;
+    }
+  } finally {
+    clearTimeout(timeoutId);
+  }
 }
 
 let stockChartSeq = 0;
@@ -429,18 +618,30 @@ function clearPeerSuggestions() {
   lastPeerTickers = [];
 }
 
-async function loadPeerSuggestions(ticker) {
+function applySuggestedCompetitors(peers) {
+  if (!peers?.length) return;
+  setCompetitorsFromSet(new Set(peers.map((p) => p.ticker)));
+}
+
+async function loadPeerSuggestions(ticker, options = {}) {
+  const { autoFillCompetitors = false } = options;
   if (!els.peerSuggestions || !ticker) return;
+  const symbol = ticker.trim().toUpperCase();
+  if (!symbol) return;
+
   const seq = ++peerSuggestionsSeq;
   els.peerSuggestions.hidden = false;
   if (els.peerClusterLabel) els.peerClusterLabel.textContent = "Loading peer suggestions…";
   if (els.peerChips) els.peerChips.innerHTML = "";
-  if (els.peerSuggestionsEmpty) els.peerSuggestionsEmpty.hidden = true;
+  if (els.peerSuggestionsEmpty) {
+    els.peerSuggestionsEmpty.textContent = "No peer cluster for this company yet.";
+    els.peerSuggestionsEmpty.hidden = true;
+  }
   if (els.peerUseAll) els.peerUseAll.hidden = true;
 
   try {
     const res = await fetch(
-      `/api/companies/${encodeURIComponent(ticker)}/peer-suggestions`
+      `/api/companies/${encodeURIComponent(symbol)}/peer-suggestions`
     );
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
@@ -451,7 +652,13 @@ async function loadPeerSuggestions(ticker) {
       if (els.peerClusterLabel) {
         els.peerClusterLabel.textContent = data.cluster_label || "Similar companies";
       }
-      if (els.peerSuggestionsEmpty) els.peerSuggestionsEmpty.hidden = false;
+      if (els.peerSuggestionsEmpty) {
+        els.peerSuggestionsEmpty.textContent = data.cluster_label
+          ? `No mapped peers for ${symbol} yet (${data.cluster_label}). Add competitors manually.`
+          : `No mapped peers for ${symbol} yet. Add competitors manually.`;
+        els.peerSuggestionsEmpty.hidden = false;
+      }
+      if (autoFillCompetitors) setCompetitorsFromSet(new Set());
       return;
     }
 
@@ -460,12 +667,11 @@ async function loadPeerSuggestions(ticker) {
       (data.source === "sic" ? "Peers by industry (SEC SIC)" : "Suggested peers");
     if (els.peerClusterLabel) els.peerClusterLabel.textContent = label;
     renderPeerChips(lastPeerTickers);
+    if (autoFillCompetitors) applySuggestedCompetitors(lastPeerTickers);
     if (els.peerUseAll) {
       els.peerUseAll.hidden = false;
       els.peerUseAll.onclick = () => {
-        const selected = getSelectedCompetitors();
-        lastPeerTickers.forEach((p) => selected.add(p.ticker));
-        setCompetitorsFromSet(selected);
+        applySuggestedCompetitors(lastPeerTickers);
         renderPeerChips(lastPeerTickers);
       };
     }
@@ -520,14 +726,21 @@ function renderCompanySuggestions(hits, statusText) {
     )
     .join("");
   els.companySuggestions.hidden = false;
+  const pickCompanyHit = (index) => {
+    const hit = companyHits[Number(index)];
+    if (!hit) return;
+    applyCompanySelection(hit);
+    closeCompanySuggestions();
+  };
+
   els.companySuggestions.querySelectorAll(".combobox-option").forEach((btn) => {
     btn.addEventListener("mousedown", (e) => {
       e.preventDefault();
-      const hit = companyHits[Number(btn.dataset.index)];
-      if (hit) {
-        applyCompanySelection(hit);
-        closeCompanySuggestions();
-      }
+      pickCompanyHit(btn.dataset.index);
+    });
+    btn.addEventListener("click", (e) => {
+      e.preventDefault();
+      pickCompanyHit(btn.dataset.index);
     });
   });
 }
@@ -1133,39 +1346,71 @@ els.form.addEventListener("submit", async (e) => {
   }
 });
 
-els.themeToggle?.addEventListener("click", toggleTheme);
-applyTheme(getTheme());
-initCompanyTypeahead();
+function initApp() {
+  els.themeToggle?.addEventListener("click", toggleTheme);
+  applyTheme(getTheme());
+  initCompanyTypeahead();
 
-els.stockRangeBtns?.forEach((btn) => {
-  btn.addEventListener("click", () => {
-    const range = btn.dataset.range || "6mo";
-    loadStockChart(els.ticker?.value?.trim(), range);
+  els.stockRangeBtns?.forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const range = btn.dataset.range || "6mo";
+      loadStockChart(els.ticker?.value?.trim(), range);
+    });
   });
-});
 
-let stockChartResizeTimer = null;
-window.addEventListener("resize", () => {
-  clearTimeout(stockChartResizeTimer);
-  stockChartResizeTimer = setTimeout(() => {
-    if (!lastStockPoints.length) return;
-    drawStockChart(lastStockPoints, lastStockChangePct, lastTrendLines);
-  }, 120);
-});
+  let stockChartResizeTimer = null;
+  window.addEventListener("resize", () => {
+    clearTimeout(stockChartResizeTimer);
+    stockChartResizeTimer = setTimeout(() => {
+      if (!lastStockPoints.length) return;
+      drawStockChart(lastStockPoints, lastStockChangePct, lastTrendLines);
+    }, 120);
+  });
 
-els.ticker?.addEventListener("change", () => {
-  const t = els.ticker.value.trim().toUpperCase();
-  if (t) loadStockChart(t, currentStockRange);
-});
+  const schedulePeerLoadForTicker = (raw) => {
+    if (selectingCompany) return;
+    clearTimeout(tickerPeerTimer);
+    const t = raw.trim().toUpperCase();
+    if (!t) {
+      clearPeerSuggestions();
+      return;
+    }
+    tickerPeerTimer = setTimeout(() => {
+      loadPeerSuggestions(t, { autoFillCompetitors: true });
+    }, 350);
+  };
 
-const footerYear = document.getElementById("footer-year");
-if (footerYear) footerYear.textContent = String(new Date().getFullYear());
+  els.ticker?.addEventListener("change", () => {
+    const t = els.ticker.value.trim().toUpperCase();
+    if (t) {
+      els.ticker.value = t;
+      loadStockChart(t, currentStockRange);
+      loadPeerSuggestions(t, { autoFillCompetitors: true });
+    }
+  });
 
-els.competitors?.addEventListener("input", () => {
-  if (lastPeerTickers.length) renderPeerChips(lastPeerTickers);
-});
+  els.ticker?.addEventListener("blur", () => {
+    schedulePeerLoadForTicker(els.ticker?.value || "");
+  });
 
-loadSessionList();
-setUiState("idle");
-loadPeerSuggestions(els.ticker?.value?.trim() || "MSFT");
-loadStockChart(els.ticker?.value?.trim() || "MSFT", currentStockRange);
+  const footerYear = document.getElementById("footer-year");
+  if (footerYear) footerYear.textContent = String(new Date().getFullYear());
+
+  els.competitors?.addEventListener("input", () => {
+    if (lastPeerTickers.length) renderPeerChips(lastPeerTickers);
+  });
+
+  els.refreshPennyStocks?.addEventListener("click", () => loadPennyStocks());
+
+  loadSessionList();
+  loadPennyStocks();
+  setUiState("idle");
+  loadPeerSuggestions(els.ticker?.value?.trim() || "MSFT");
+  loadStockChart(els.ticker?.value?.trim() || "MSFT", currentStockRange);
+}
+
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", initApp);
+} else {
+  initApp();
+}

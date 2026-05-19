@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import json
 import logging
-from functools import lru_cache
 from pathlib import Path
 from typing import Literal
 
@@ -24,12 +23,21 @@ _sec_client = SECClient()
 PeerSource = Literal["ticker", "sic", "none"]
 
 
-@lru_cache
+_clusters_cache: dict | None = None
+_clusters_mtime: float = 0.0
+
+
 def _load_clusters() -> dict:
+    global _clusters_cache, _clusters_mtime
     if not CLUSTERS_PATH.exists():
         logger.warning("Peer clusters file missing: %s", CLUSTERS_PATH)
         return {"by_ticker": {}, "by_sic": {}}
-    return json.loads(CLUSTERS_PATH.read_text(encoding="utf-8"))
+    mtime = CLUSTERS_PATH.stat().st_mtime
+    if _clusters_cache is not None and mtime == _clusters_mtime:
+        return _clusters_cache
+    _clusters_cache = json.loads(CLUSTERS_PATH.read_text(encoding="utf-8"))
+    _clusters_mtime = mtime
+    return _clusters_cache
 
 
 def _cluster_entry(by_key: dict, key: str) -> tuple[str, list[str]] | None:

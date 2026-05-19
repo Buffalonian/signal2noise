@@ -4,6 +4,7 @@ from typing import Literal
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 LlmProviderSetting = Literal["auto", "openai", "ollama", "demo"]
+PennyScreenerProviderSetting = Literal["auto", "yahoo", "alpha_vantage"]
 
 
 class Settings(BaseSettings):
@@ -29,6 +30,9 @@ class Settings(BaseSettings):
     sec_cache_ttl_hours: int = 24
     company_tickers_cache_path: str = "data/company_tickers.json"
     company_tickers_ttl_hours: int = 168
+    penny_screener_cache_ttl_minutes: int = 5
+    penny_screener_provider: PennyScreenerProviderSetting = "auto"
+    alpha_vantage_api_key: str = ""
 
 
 @lru_cache

@@ -1,5 +1,6 @@
 :root {
   --header-h: 52px;
+  --ticker-h: 40px;
   --footer-h: 28px;
   --tabs-h: 0px;
   --ring-size: 52px;
@@ -182,6 +183,133 @@ body {
   display: flex;
   align-items: center;
   gap: 0.5rem;
+}
+
+/* —— Penny stock ticker tape —— */
+.penny-ticker-bar {
+  flex-shrink: 0;
+  height: var(--ticker-h);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-bottom: 1px solid var(--border);
+  background: var(--log-bg);
+  overflow: hidden;
+}
+
+.penny-ticker-center {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.2rem;
+  width: 100%;
+  max-width: 100%;
+  padding: 0.2rem 1rem;
+}
+
+.penny-ticker-label {
+  flex-shrink: 0;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--accent);
+  text-align: center;
+}
+
+.penny-ticker-viewport {
+  width: 100%;
+  overflow: hidden;
+  display: flex;
+  justify-content: center;
+}
+
+.penny-ticker-track {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  width: max-content;
+  margin: 0 auto;
+  animation: penny-ticker-scroll 45s linear infinite;
+}
+
+.penny-ticker-track.is-centered {
+  animation: none;
+  width: auto;
+  max-width: 100%;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.15rem 0;
+}
+
+.penny-ticker-track.is-paused {
+  animation-play-state: paused;
+}
+
+.penny-ticker-track:not(.is-centered):hover {
+  animation-play-state: paused;
+}
+
+@keyframes penny-ticker-scroll {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+.penny-ticker-msg {
+  padding: 0 0.5rem;
+  font-size: 11px;
+  white-space: nowrap;
+  text-align: center;
+}
+
+.penny-ticker-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0 0.15rem;
+  margin: 0;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  font-size: 12px;
+  font-family: "JetBrains Mono", monospace;
+  color: var(--text);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.penny-ticker-item:hover {
+  color: var(--accent);
+}
+
+.penny-ticker-item .sym {
+  font-weight: 700;
+}
+
+.penny-ticker-item .px {
+  color: var(--text-secondary);
+}
+
+.penny-ticker-item .chg.up {
+  color: var(--pass);
+  font-weight: 600;
+}
+
+.penny-ticker-item .chg.down {
+  color: var(--fail);
+  font-weight: 600;
+}
+
+.penny-ticker-sep {
+  margin: 0 0.85rem;
+  color: var(--border);
+  user-select: none;
 }
 
 .theme-toggle {
@@ -743,6 +871,99 @@ textarea {
   margin: 0.25rem 0 0;
   font-size: 10px;
   text-align: center;
+}
+
+.penny-stocks-block {
+  margin-top: 1rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--border);
+  text-align: center;
+}
+
+.penny-stocks-head {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.35rem;
+}
+
+.penny-stocks-head h3 {
+  margin: 0;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.penny-stocks-disclaimer {
+  margin: 0 auto 0.35rem;
+  max-width: 20rem;
+  font-size: 10px;
+  line-height: 1.4;
+}
+
+.penny-stocks-status {
+  margin: 0 auto 0.35rem;
+  font-size: 10px;
+}
+
+.penny-stocks-table-wrap {
+  margin: 0 auto;
+  max-width: 20rem;
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--log-bg);
+}
+
+.penny-stocks-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 11px;
+}
+
+.penny-stocks-table th,
+.penny-stocks-table td {
+  padding: 0.3rem 0.35rem;
+  text-align: center;
+  border-bottom: 1px solid var(--border);
+}
+
+.penny-stocks-table th {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.penny-stocks-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.penny-stock-row {
+  cursor: pointer;
+}
+
+.penny-stock-row:hover {
+  background: var(--accent-soft);
+}
+
+.penny-ticker {
+  font-family: "JetBrains Mono", monospace;
+  font-weight: 600;
+}
+
+.penny-change.up {
+  color: var(--pass);
+  font-weight: 600;
+}
+
+.penny-change.down {
+  color: var(--fail);
+  font-weight: 600;
 }
 
 .history-block {

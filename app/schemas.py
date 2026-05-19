@@ -158,6 +158,24 @@ class MarketEntertainmentResponse(BaseModel):
     validation: MarketValidation
 
 
+class PennyStockRow(BaseModel):
+    symbol: str
+    name: str
+    price: Optional[float] = None
+    change: Optional[float] = None
+    change_pct: Optional[float] = None
+    volume: Optional[int] = None
+    market_cap: Optional[float] = None
+
+
+class PennyStocksResponse(BaseModel):
+    stocks: list[PennyStockRow] = Field(default_factory=list)
+    source: str = "yahoo_finance"
+    disclaimer: str = ""
+    updated_at: str = ""
+    filters: Dict[str, object] = Field(default_factory=dict)
+
+
 class RunSessionDetail(BaseModel):
     id: str
     created_at: str
